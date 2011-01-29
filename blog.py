@@ -6,8 +6,10 @@ import markdown
 import os
 import sys
 
+import atom
 import util
 import template
+import time
 
 class Post(object):
     def __init__(self, title, timestamp, path, content):
@@ -27,7 +29,7 @@ def load_post(path):
     #timestamp += datetime.timedelta(seconds=time.timezone)
     html = markdown.markdown(content.decode('utf-8')).encode('utf-8')
 
-    path = (timestamp.strftime('%Y/%m/%d') + '/' +
+    path = (timestamp.strftime('%Y/%m') + '/' +
             os.path.splitext(os.path.basename(path))[0] + '.html')
     return Post(title=headers['subject'],
                 timestamp=timestamp,
@@ -52,7 +54,7 @@ def load_posts(root):
 def render_post(root, post):
     return templates['post'].evaluate({
             'title': post.title,
-            'datetime': post.timestamp.strftime('%Y-%m-%d %H:%M'),
+            'datetime': post.timestamp.strftime('%Y/%m/%d %H:%M'),
             'url': os.path.join(root, post.path),
             'content': post.content
             })
@@ -74,7 +76,8 @@ def generate_archive(posts):
                 'posts': links
                 })
     return templates['page'].evaluate({
-                'title': settings['title'] + ': all posted entries',
+                'title': settings['title'],
+                'subtitle': ': all posted entries',
                 'root': './',
                 'content': content
                 })
@@ -86,14 +89,38 @@ def generate_post_page(root, post):
             'post': render_post(root, post)
             })
     return templates['page'].evaluate({
-            'title': settings['title'] + ': ' + post.title,
+            'title': settings['title'],
+            'subtitle': ': ' + post.title,
             'root': root,
             'content': content
             })
 
 
+def generate_feed(posts):
+    author = atom.Author(name='Evan Martin', email='evan@chromium.org')
+    entries = []
+    for post in posts[:5]:
+        # Rewrite post path into the weird id form I used to use.
+        id = settings['id_base'] + '/' + (
+            post.timestamp.strftime('%Y-%m-%d') + '/' +
+            os.path.splitext(os.path.basename(post.path))[0])
+        timestamp = post.timestamp + datetime.timedelta(seconds=time.timezone)
+        entries.append(atom.Entry(timestamp=timestamp,
+                                  id=id,
+                                  title=post.title,
+                                  link=settings['link'] + post.path,
+                                  content=post.content))
+    feed = atom.Feed(title=settings['title'],
+                     id=settings['id_base'],
+                     link=settings['link'],
+                     selflink=settings['link'] + 'atom.xml',
+                     author=author,
+                     entries=entries)
+    return feed.to_xml()
+
+
 def generate_index(posts):
-    posts = posts[:10]
+    posts = posts[:5]
     return templates['page'].evaluate({
             'title': settings['title'],
             'extrahead': settings['index_extra_head'],
@@ -119,6 +146,7 @@ def regenerate(in_dir):
 
     util.write_if_changed('index.html', generate_index(posts))
     util.write_if_changed('archive.html', generate_archive(posts))
+    util.write_if_changed('atom.xml', generate_feed(posts))
     for post in posts:
         dir = os.path.split(post.path)[0]
         try:
