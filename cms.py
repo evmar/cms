@@ -5,32 +5,11 @@ import markdown
 import time
 import datetime
 import re
-import sitefeed
+import util
 import StringIO
 
-def readfile(path):
-    f = open(path)
-    data = f.read()
-    f.close()
-    return data
-
-
-class Template(object):
-    def __init__(self, path):
-        self.parse(readfile(path))
-
-    def parse(self, text):
-        self.parts = text.split('%%')
-
-    def evaluate(self, attrs):
-        out = []
-        for i, part in enumerate(self.parts):
-            if i % 2 == 0:
-                out.append(part)
-            else:
-                out.append(attrs.get(part, ''))
-        return ''.join(out)
-
+import template
+import sitefeed
 
 def find_files():
     all_files = []
@@ -46,12 +25,7 @@ def find_files():
 
 
 def process(default_template, path):
-    headertext, content = readfile(path).split('\n\n', 1)
-    headers = {}
-    for header in headertext.split('\n'):
-        key, val = header.split(': ', 1)
-        key = key.lower()
-        headers[key] = val
+    headers, content = util.read_header_file(path)
 
     mtime = time.localtime(os.path.getmtime(path))
 
@@ -75,12 +49,9 @@ def process(default_template, path):
     output = default_template.evaluate(attrs)
 
     output_path = os.path.splitext(path)[0] + '.html'
-    if readfile(output_path) != output:
-        print '*', output_path
-        with open(output_path, 'w') as f:
-            f.write(output)
+    util.write_if_changed(output_path, output)
 
-default_template = Template('site/page.tmpl')
+default_template = template.Template('site/page.tmpl')
 all_files = find_files()
 for path in all_files:
     process(default_template, path)
