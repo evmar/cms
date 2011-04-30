@@ -97,7 +97,7 @@ def generate_post_page(root, post):
 
 
 def generate_feed(posts):
-    author = atom.Author(name='Evan Martin', email='evan@chromium.org')
+    author = atom.Author(name=settings['author'], email=settings['email'])
     entries = []
     for post in posts[:5]:
         # Rewrite post path into the weird id form I used to use.
