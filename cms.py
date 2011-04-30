@@ -25,7 +25,11 @@ def find_files():
 
 
 def process(default_template, path):
-    headers, content = util.read_header_file(path)
+    try:
+        headers, content = util.read_header_file(path)
+    except:
+        print "when processing '%s':" % path
+        raise
 
     mtime = time.localtime(os.path.getmtime(path))
 
