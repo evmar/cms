@@ -36,6 +36,11 @@ def process(default_template, path):
     def special(cmd):
         if cmd == 'sitefeed':
             posts = sitefeed.load()
+
+            output = StringIO.StringIO()
+            sitefeed.write_atom(posts, output)
+            util.write_if_changed('feed.xml', output.getvalue())
+
             output = StringIO.StringIO()
             sitefeed.write_html(posts, output)
             return output.getvalue()
