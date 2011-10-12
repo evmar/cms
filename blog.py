@@ -6,20 +6,24 @@ import markdown
 import os
 import sys
 
+import jinja2
+
 import atom
 import util
-import template
 import time
 
 class Post(object):
-    def __init__(self, title, timestamp, path, content):
+    def __init__(self, title, timestamp, path, content, summary):
         self.title = title
         self.timestamp = timestamp
         self.path = path
         self.content = content
+        self.summary = summary
 
 settings = None
-templates = {}
+jinja = None
+
+FRONTPAGE_POSTS = 5
 
 def load_post(path):
     headers, content = util.read_header_file(path)
@@ -34,7 +38,8 @@ def load_post(path):
     return Post(title=headers['subject'],
                 timestamp=timestamp,
                 path=path,
-                content=html)
+                content=html.decode('utf-8'),
+                summary=headers.get('summary', ''))
 
 
 def load_posts(root):
@@ -44,56 +49,41 @@ def load_posts(root):
             _, ext = os.path.splitext(file)
             if ext == '.text':
                 path = os.path.join(dirname, file)
-                posts.append(load_post(path))
+                try:
+                    post = load_post(path)
+                except:
+                    print 'when loading', path
+                    raise
+                posts.append(post)
     os.path.walk(root, visit, None)
     posts.sort(key=lambda post: post.timestamp)
     posts.reverse()
     return posts
 
 
-def render_post(root, post):
-    return templates['post'].evaluate({
-            'title': post.title,
-            'datetime': post.timestamp.strftime('%Y/%m/%d %H:%M'),
-            'url': os.path.join(root, post.path),
-            'content': post.content
-            })
-
-
 def generate_archive(posts):
-    content = ''
-    def month_key(post):
-        return post.timestamp.strftime('%Y/%m')
-    for month, mposts in itertools.groupby(posts, key=month_key):
-        links = ''
-        for post in mposts:
-            links += templates['archive-post'].evaluate({
-                    'url': post.path,
-                    'title': post.title
-                    })
-        content += templates['archive-month'].evaluate({
-                'month': month,
-                'posts': links
-                })
-    return templates['page'].evaluate({
-                'title': settings['title'],
-                'subtitle': ': all posted entries',
-                'root': './',
-                'content': content
-                })
+    def year_key(post):
+        return post.timestamp.strftime('%Y')
+    year_posts = []
+    for year, posts in itertools.groupby(posts, key=year_key):
+        year_posts.append({'year': year, 'posts': list(posts)})
 
+    return jinja.get_template('archive.tmpl').render(
+        root = './',
+        title = settings['title'],
+        grouped_posts = year_posts,
+        pagetitle = '%s: archive' % settings['title'],
+        )
 
 def generate_post_page(root, post):
-    content = templates['single-post'].evaluate({
-            'root': root,
-            'post': render_post(root, post)
-            })
-    return templates['page'].evaluate({
-            'title': settings['title'],
-            'subtitle': ': ' + post.title,
-            'root': root,
-            'content': content
-            })
+    return jinja.get_template('post.tmpl').render(
+        root = root,
+        title = settings['title'],
+        extrahead = settings['index_extra_head'],
+        post = post,
+        url = os.path.join(root, post.path),
+        pagetitle = '%s: %s' % (settings['title'], post.title),
+        )
 
 
 def generate_feed(posts):
@@ -119,13 +109,13 @@ def generate_feed(posts):
     return feed.to_xml()
 
 
-def generate_index(posts):
-    posts = posts[:5]
-    return templates['page'].evaluate({
-            'title': settings['title'],
-            'extrahead': settings['index_extra_head'],
-            'content': ''.join([render_post('', p) for p in posts])
-            })
+def generate_frontpage(posts):
+    posts = posts[:FRONTPAGE_POSTS]
+    return jinja.get_template('frontpage.tmpl').render(
+            title = settings['title'],
+            extrahead = settings['index_extra_head'],
+            posts = posts,
+            )
 
 
 def regenerate(in_dir):
@@ -135,18 +125,18 @@ def regenerate(in_dir):
     settings = util.parse_headers(util.read_file(
             os.path.join(in_dir, 'settings')).strip())
 
-    global templates
-    for filename in os.listdir(os.path.join(in_dir, 'templates')):
-        name, ext = os.path.splitext(filename)
-        if ext == '.tmpl':
-            path = os.path.join(in_dir, 'templates', filename)
-            templates[name] = template.Template(path)
+    global jinja
+    jinja = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(os.path.join(in_dir, 'templates')),
+        autoescape=True)
 
     posts = load_posts(os.path.join(in_dir, 'posts'))
 
-    util.write_if_changed('index.html', generate_index(posts))
-    util.write_if_changed('archive.html', generate_archive(posts))
+    util.write_if_changed('index.html', generate_frontpage(posts))
+    if len(posts) > FRONTPAGE_POSTS:
+        util.write_if_changed('archive.html', generate_archive(posts))
     util.write_if_changed('atom.xml', generate_feed(posts))
+
     for post in posts:
         dir = os.path.split(post.path)[0]
         try:
@@ -154,7 +144,9 @@ def regenerate(in_dir):
         except OSError:
             pass
         root = '../' * post.path.count('/')
-        util.write_if_changed(post.path, generate_post_page(root, post))
+        util.write_if_changed(post.path,
+                              generate_post_page(root, post).encode('utf-8'))
+
 
 if __name__ == '__main__':
     regenerate(sys.argv[1])
