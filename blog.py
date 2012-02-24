@@ -23,7 +23,7 @@ class Post(object):
 settings = None
 jinja = None
 
-FRONTPAGE_POSTS = 5
+FRONTPAGE_POSTS = 10
 
 def load_post(path):
     headers, content = util.read_header_file(path)

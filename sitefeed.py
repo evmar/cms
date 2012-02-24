@@ -26,7 +26,9 @@ def write_atom(posts, outfile):
     ET.SubElement(feed, 'link', href='http://neugierig.org/')
     ET.SubElement(feed, 'link', rel='self',
                   href='http://neugierig.org/feed.xml')
-    ET.SubElement(feed, 'updated').text = atomdate(posts[0][0]['Timestamp'])
+    if posts:
+        ET.SubElement(feed, 'updated').text = \
+            atomdate(posts[0][0]['Timestamp'])
     author = ET.SubElement(feed, 'author')
     ET.SubElement(author, 'name').text = 'Evan Martin'
     ET.SubElement(author, 'email').text = 'martine@danga.com'
@@ -54,6 +56,8 @@ def load():
     posts = []
     f = open('sitefeed.txt', 'r')
     for post in f.read().split('====\n'):
+        if not post:
+            continue
         headertext, body = post.strip().split('\n\n', 1)
         headers = {}
         for header in headertext.split('\n'):
