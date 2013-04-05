@@ -9,7 +9,6 @@ import util
 import StringIO
 
 import template
-import sitefeed
 
 def find_files():
     all_files = []
@@ -32,24 +31,6 @@ def process(default_template, path):
         raise
 
     mtime = time.localtime(os.path.getmtime(path))
-
-    def special(cmd):
-        if cmd == 'sitefeed':
-            posts = sitefeed.load()
-
-            output = StringIO.StringIO()
-            sitefeed.write_atom(posts, output)
-            util.write_if_changed('feed.xml', output.getvalue())
-
-            output = StringIO.StringIO()
-            sitefeed.write_html(posts, output)
-            return output.getvalue()
-        else:
-            raise RuntimeError, repr(cmd)
-
-    content = re.sub(r'\n\n%(\w+\S+)\n\n',
-                     lambda match: '\n\n' + special(match.group(1)) + '\n\n',
-                     content)
 
     attrs = {'content': markdown.markdown(content),
              'lastupdate': time.strftime('%Y-%m-%d', mtime)}
