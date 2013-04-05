@@ -33,7 +33,8 @@ def process(default_template, path):
     mtime = time.localtime(os.path.getmtime(path))
 
     attrs = {'content': markdown.markdown(content),
-             'lastupdate': time.strftime('%Y-%m-%d', mtime)}
+             'lastupdate': time.strftime('%Y-%m-%d', mtime),
+             'root': '../' * (path.count('/') - 1)}
     attrs.update(headers)
 
     output = default_template.evaluate(attrs)
