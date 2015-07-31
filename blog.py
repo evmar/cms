@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 import itertools
 import datetime
@@ -31,7 +31,17 @@ def load_post(path):
     timestamp = datetime.datetime.strptime(headers['timestamp'],
                                            '%Y/%m/%d %H:%M')
     #timestamp += datetime.timedelta(seconds=time.timezone)
-    html = markdown.markdown(content.decode('utf-8')).encode('utf-8')
+    html = markdown.markdown(content.decode('utf-8'),
+                             extensions=['smarty'],
+                             extension_configs={
+                                 'smarty': {
+                                     'smart_quotes': False,
+                                     'smart_ellipses': False,
+                                     'substitutions': {
+                                         'ndash': '&mdash;',
+                                     },
+                                 }
+                             }).encode('utf-8')
 
     path = (timestamp.strftime('%Y/%m') + '/' +
             os.path.splitext(os.path.basename(path))[0] + '.html')
