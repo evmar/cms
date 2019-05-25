@@ -8,7 +8,7 @@ import re
 import util
 import StringIO
 
-import template
+import jinja2
 
 def find_files():
     all_files = []
@@ -23,26 +23,40 @@ def find_files():
     return all_files
 
 
-def process(default_template, path):
+def process(jinja, path):
     try:
         headers, content = util.read_header_file(path)
     except:
         print "when processing '%s':" % path
         raise
 
-    mtime = time.localtime(os.path.getmtime(path))
-
-    attrs = {'content': markdown.markdown(content),
-             'lastupdate': time.strftime('%Y-%m-%d', mtime),
-             'root': '../' * (path.count('/') - 1)}
+    html = markdown.markdown(content.decode('utf-8'),
+                             extensions=['smarty'],
+                             extension_configs={
+                                 'smarty': {
+                                     'smart_quotes': False,
+                                     'smart_ellipses': False,
+                                     'substitutions': {
+                                         'ndash': '&mdash;',
+                                     },
+                                 }
+                             }).encode('utf-8')
+    attrs = {
+        'content': html,
+        'root': '../' * (path.count('/') - 1),
+    }
     attrs.update(headers)
 
-    output = default_template.evaluate(attrs)
+    output = jinja.get_template('page.tmpl').render(
+        **attrs
+        )
 
     output_path = os.path.splitext(path)[0] + '.html'
     util.write_if_changed(output_path, output)
 
-default_template = template.Template('site/page.tmpl')
 all_files = find_files()
+jinja = jinja2.Environment(
+    loader=jinja2.FileSystemLoader('site'),
+    autoescape=True)
 for path in all_files:
-    process(default_template, path)
+    process(jinja, path)
