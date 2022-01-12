@@ -12,7 +12,7 @@ def read_file(path):
 def write_if_changed(path, output):
     if os.path.exists(path) and read_file(path) == output:
         return
-    print '*', path
+    print('*', path)
     with open(path, 'w') as f:
         f.write(output)
 

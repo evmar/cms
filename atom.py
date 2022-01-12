@@ -61,4 +61,5 @@ class Feed(object):
         return feed
 
     def to_xml(self):
-        return ET.tostring(self.to_et())
+        # 'unicode' is not an encoding, grumble.
+        return ET.tostring(self.to_et(), encoding='unicode')

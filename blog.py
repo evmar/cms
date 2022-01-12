@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 
 import itertools
 import datetime
@@ -31,7 +31,7 @@ def load_post(path):
     timestamp = datetime.datetime.strptime(headers['timestamp'],
                                            '%Y/%m/%d %H:%M')
     #timestamp += datetime.timedelta(seconds=time.timezone)
-    html = markdown.markdown(content.decode('utf-8'),
+    html = markdown.markdown(content,
                              extensions=['smarty'],
                              extension_configs={
                                  'smarty': {
@@ -54,18 +54,17 @@ def load_post(path):
 
 def load_posts(root):
     posts = []
-    def visit(arg, dirname, files):
+    for root, dirs, files in os.walk(root):
         for file in files:
             _, ext = os.path.splitext(file)
             if ext == '.text':
-                path = os.path.join(dirname, file)
+                path = os.path.join(root, file)
                 try:
                     post = load_post(path)
                 except:
-                    print 'when loading', path
+                    print('when loading', path)
                     raise
                 posts.append(post)
-    os.path.walk(root, visit, None)
     posts.sort(key=lambda post: post.timestamp)
     posts.reverse()
     return posts
@@ -129,7 +128,7 @@ def generate_frontpage(posts):
 
 
 def regenerate(in_dir):
-    os.umask(022)
+    os.umask(0o022)
 
     global settings
     settings = util.parse_headers(util.read_file(
@@ -155,7 +154,7 @@ def regenerate(in_dir):
             pass
         root = '../' * post.path.count('/')
         util.write_if_changed(post.path,
-                              generate_post_page(root, post).encode('utf-8'))
+                              generate_post_page(root, post))
 
 
 if __name__ == '__main__':
