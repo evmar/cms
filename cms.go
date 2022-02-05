@@ -56,18 +56,19 @@ func readPost(path string) (*Post, error) {
 	if err != nil {
 		return nil, err
 	}
-	parts := bytes.SplitN(buf, []byte("\n\n"), 2)
-	headers, err := parseHeaders(string(parts[0]))
+	parts := bytes.SplitN(buf, []byte("---\n"), 3)
+	headers, err := parseHeaders(string(parts[1]))
 	if err != nil {
 		return nil, err
 	}
-	html := markdown.ToHTML(parts[1], nil, html.NewRenderer(html.RendererOptions{
+	html := markdown.ToHTML(parts[2], nil, html.NewRenderer(html.RendererOptions{
 		Flags: html.FlagsNone,
 	}))
 	// Hacks to make the output match the previous rendering:
 	html = bytes.ReplaceAll(html, []byte(" --- "), []byte(" &mdash; "))
 	html = bytes.ReplaceAll(html, []byte(" -- "), []byte(" &mdash; "))
 	html = bytes.ReplaceAll(html, []byte(" --\n"), []byte(" &mdash;\n"))
+	html = bytes.ReplaceAll(html, []byte("\n--"), []byte("\n&mdash;"))
 	html = bytes.ReplaceAll(html, []byte("&quot;"), []byte("\""))
 	html = bytes.ReplaceAll(html, []byte(">\n\n"), []byte(">\n"))
 	html = bytes.ReplaceAll(html, []byte("<hr>"), []byte("<hr />"))
@@ -75,7 +76,12 @@ func readPost(path string) (*Post, error) {
 	html = bytes.ReplaceAll(html, []byte("</p></li>"), []byte("</p>\n</li>"))
 	html = bytes.Trim(html, " \n")
 
-	timestamp, err := time.Parse("2006/01/02 15:04", headers["Timestamp"])
+	var timestamp time.Time
+	if ts := headers["Timestamp"]; ts != "" {
+		timestamp, err = time.Parse("2006/01/02 15:04", headers["Timestamp"])
+	} else {
+		timestamp, err = time.Parse("2006/01/02", headers["Date"])
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -102,13 +108,14 @@ func readPosts() ([]*Post, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if filepath.Ext(path) == ".text" {
-			post, err := readPost(path)
-			posts = append(posts, post)
-			if err != nil {
-				return err
-			}
+		if filepath.Ext(path) != ".md" {
+			return nil
 		}
+		post, err := readPost(path)
+		if err != nil {
+			return err
+		}
+		posts = append(posts, post)
 		return nil
 	})
 	if err != nil {
@@ -119,11 +126,14 @@ func readPosts() ([]*Post, error) {
 
 func writeIfChanged(path string, data []byte) error {
 	old, err := os.ReadFile(path)
-	if err != nil && err != os.ErrNotExist {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if bytes.Equal(old, data) {
 		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+		return err
 	}
 	if err := os.WriteFile(path, data, 0666); err != nil {
 		return err
@@ -173,7 +183,11 @@ func load() (*Site, error) {
 func (site *Site) renderFront() error {
 	frontTmpl := template.Must(template.Must(site.pageTmpl.Clone()).ParseFiles("src/templates/frontpage.gotmpl"))
 	frontPosts := []interface{}{}
-	for _, post := range site.posts[:10] {
+	posts := site.posts
+	if len(posts) > 10 {
+		posts = posts[:10]
+	}
+	for _, post := range posts {
 		frontPosts = append(frontPosts, map[string]interface{}{
 			"title":   post.subject,
 			"summary": post.summary,
@@ -294,7 +308,11 @@ func (site *Site) renderFeed() error {
 		},
 	}
 
-	for _, post := range site.posts[:3] {
+	posts := site.posts
+	if len(posts) > 3 {
+		posts = posts[:3]
+	}
+	for _, post := range posts {
 		feed.Entries = append(feed.Entries, Entry{
 			ID: site.settings["id_base"] + "/" +
 				post.timestamp.Format("2006-01-02") + "/" +
