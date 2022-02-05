@@ -151,13 +151,13 @@ func renderIfChanged(path string, tmpl *template.Template, params interface{}) e
 	return writeIfChanged(path, buf.Bytes())
 }
 
-type Site struct {
+type Blog struct {
 	settings map[string]string
 	pageTmpl *template.Template
 	posts    []*Post
 }
 
-func load() (*Site, error) {
+func load() (*Blog, error) {
 	settings, err := readSettings()
 	if err != nil {
 		return nil, err
@@ -173,17 +173,17 @@ func load() (*Site, error) {
 		return posts[i].timestamp.After(posts[j].timestamp)
 	})
 
-	return &Site{
+	return &Blog{
 		settings: settings,
 		pageTmpl: page,
 		posts:    posts,
 	}, nil
 }
 
-func (site *Site) renderFront() error {
-	frontTmpl := template.Must(template.Must(site.pageTmpl.Clone()).ParseFiles("src/templates/frontpage.gotmpl"))
+func (blog *Blog) renderFront() error {
+	frontTmpl := template.Must(template.Must(blog.pageTmpl.Clone()).ParseFiles("src/templates/frontpage.gotmpl"))
 	frontPosts := []interface{}{}
-	posts := site.posts
+	posts := blog.posts
 	if len(posts) > 10 {
 		posts = posts[:10]
 	}
@@ -196,21 +196,21 @@ func (site *Site) renderFront() error {
 		})
 	}
 	params := map[string]interface{}{
-		"title":     site.settings["title"],
-		"extrahead": template.HTML(site.settings["index_extra_head"]),
+		"title":     blog.settings["title"],
+		"extrahead": template.HTML(blog.settings["index_extra_head"]),
 		"posts":     frontPosts,
 	}
 	return renderIfChanged("index.html", frontTmpl, params)
 }
 
-func (site *Site) renderPosts() error {
-	postTmpl := template.Must(template.Must(site.pageTmpl.Clone()).ParseFiles("src/templates/post.gotmpl"))
-	for _, post := range site.posts {
+func (blog *Blog) renderPosts() error {
+	postTmpl := template.Must(template.Must(blog.pageTmpl.Clone()).ParseFiles("src/templates/post.gotmpl"))
+	for _, post := range blog.posts {
 		params := map[string]interface{}{
 			"root":      "../../",
-			"title":     site.settings["title"],
-			"pagetitle": site.settings["title"] + ": " + post.subject,
-			"extrahead": template.HTML(site.settings["index_extra_head"]),
+			"title":     blog.settings["title"],
+			"pagetitle": blog.settings["title"] + ": " + post.subject,
+			"extrahead": template.HTML(blog.settings["index_extra_head"]),
 			"post": map[string]interface{}{
 				"url":     "",
 				"title":   post.subject,
@@ -225,13 +225,13 @@ func (site *Site) renderPosts() error {
 	return nil
 }
 
-func (site *Site) renderArchive() error {
-	archiveTmpl := template.Must(template.Must(site.pageTmpl.Clone()).ParseFiles("src/templates/archive.gotmpl"))
+func (blog *Blog) renderArchive() error {
+	archiveTmpl := template.Must(template.Must(blog.pageTmpl.Clone()).ParseFiles("src/templates/archive.gotmpl"))
 
 	years := []interface{}{}
 	var year map[string]interface{}
 	var posts []map[string]interface{}
-	for _, post := range site.posts {
+	for _, post := range blog.posts {
 		if year == nil || post.timestamp.Year() != year["year"].(int) {
 			if year != nil {
 				year["posts"] = posts
@@ -252,15 +252,15 @@ func (site *Site) renderArchive() error {
 
 	params := map[string]interface{}{
 		"root":      "./",
-		"title":     site.settings["title"],
-		"pagetitle": site.settings["title"] + ": archive",
-		"extrahead": template.HTML(site.settings["index_extra_head"]),
+		"title":     blog.settings["title"],
+		"pagetitle": blog.settings["title"] + ": archive",
+		"extrahead": template.HTML(blog.settings["index_extra_head"]),
 		"years":     years,
 	}
 	return renderIfChanged("archive.html", archiveTmpl, params)
 }
 
-func (site *Site) renderFeed() error {
+func (blog *Blog) renderFeed() error {
 	type Link struct {
 		XMLName xml.Name `xml:"link"`
 		Rel     string   `xml:"rel,attr,omitempty"`
@@ -295,31 +295,31 @@ func (site *Site) renderFeed() error {
 	}
 
 	feed := Feed{
-		Title: site.settings["title"],
-		ID:    site.settings["id_base"],
+		Title: blog.settings["title"],
+		ID:    blog.settings["id_base"],
 		Link: []Link{
-			{Href: site.settings["link"]},
-			{Href: site.settings["link"] + "atom.xml", Rel: "self"},
+			{Href: blog.settings["link"]},
+			{Href: blog.settings["link"] + "atom.xml", Rel: "self"},
 		},
-		Updated: site.posts[0].timestamp.Format(time.RFC3339),
+		Updated: blog.posts[0].timestamp.Format(time.RFC3339),
 		Author: Author{
-			Name:  site.settings["author"],
-			Email: site.settings["email"],
+			Name:  blog.settings["author"],
+			Email: blog.settings["email"],
 		},
 	}
 
-	posts := site.posts
+	posts := blog.posts
 	if len(posts) > 3 {
 		posts = posts[:3]
 	}
 	for _, post := range posts {
 		feed.Entries = append(feed.Entries, Entry{
-			ID: site.settings["id_base"] + "/" +
+			ID: blog.settings["id_base"] + "/" +
 				post.timestamp.Format("2006-01-02") + "/" +
 				post.filename,
 			Updated: post.timestamp.Format(time.RFC3339),
 			Title:   post.subject,
-			Link:    Link{Href: site.settings["link"] + post.htmlPath()},
+			Link:    Link{Href: blog.settings["link"] + post.htmlPath()},
 			Content: Content{Type: "html", Body: string(post.html)},
 		})
 	}
@@ -333,20 +333,20 @@ func (site *Site) renderFeed() error {
 }
 
 func run() error {
-	site, err := load()
+	blog, err := load()
 	if err != nil {
 		return err
 	}
-	if err := site.renderPosts(); err != nil {
+	if err := blog.renderPosts(); err != nil {
 		return err
 	}
-	if err := site.renderFront(); err != nil {
+	if err := blog.renderFront(); err != nil {
 		return err
 	}
-	if err := site.renderArchive(); err != nil {
+	if err := blog.renderArchive(); err != nil {
 		return err
 	}
-	if err := site.renderFeed(); err != nil {
+	if err := blog.renderFeed(); err != nil {
 		return err
 	}
 
