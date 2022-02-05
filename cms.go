@@ -51,15 +51,15 @@ func readSettings() (map[string]string, error) {
 	return parseHeaders(string(buf))
 }
 
-func readPost(path string) (*Post, error) {
+func readMarkdown(path string) (map[string]string, []byte, error) {
 	buf, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	parts := bytes.SplitN(buf, []byte("---\n"), 3)
 	headers, err := parseHeaders(string(parts[1]))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	html := markdown.ToHTML(parts[2], nil, html.NewRenderer(html.RendererOptions{
 		Flags: html.FlagsNone,
@@ -76,6 +76,14 @@ func readPost(path string) (*Post, error) {
 	html = bytes.ReplaceAll(html, []byte("</p></li>"), []byte("</p>\n</li>"))
 	html = bytes.Trim(html, " \n")
 
+	return headers, html, nil
+}
+
+func readPost(path string) (*Post, error) {
+	headers, html, err := readMarkdown(path)
+	if err != nil {
+		return nil, err
+	}
 	var timestamp time.Time
 	if ts := headers["Timestamp"]; ts != "" {
 		timestamp, err = time.Parse("2006/01/02 15:04", headers["Timestamp"])
@@ -332,7 +340,7 @@ func (blog *Blog) renderFeed() error {
 	return writeIfChanged("atom.xml", buf)
 }
 
-func run() error {
+func renderBlog() error {
 	blog, err := load()
 	if err != nil {
 		return err
@@ -353,8 +361,63 @@ func run() error {
 	return nil
 }
 
+func renderPage(tmpl *template.Template, path string) error {
+	headers, html, err := readMarkdown(path)
+	if err != nil {
+		return err
+	}
+
+	htmlPath := strings.TrimSuffix(path, ".md") + ".html"
+
+	params := map[string]interface{}{
+		"title":      headers["title"],
+		"customhead": template.HTML(headers["customhead"]),
+		"frontpage":  headers["frontpage"],
+		"content":    template.HTML(html),
+		"lastupdate": headers["lastupdate"],
+	}
+	return renderIfChanged(htmlPath, tmpl, params)
+}
+
+func renderSite() error {
+	tmpl := template.Must(template.ParseFiles("site/page.gotmpl"))
+
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			basename := filepath.Base(path)
+			if basename == ".git" || basename == "_darcs" || basename == "blog" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".md" {
+			return nil
+		}
+		return renderPage(tmpl, path)
+	})
+	return err
+}
+
+func run(args []string) error {
+	usage := fmt.Errorf("usage: cms {blog|site}")
+	if len(args) != 1 {
+		return usage
+	}
+	switch args[0] {
+	case "blog":
+		return renderBlog()
+	case "site":
+		return renderSite()
+	default:
+		return usage
+	}
+}
+
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Printf("error: %s\n", err)
 		os.Exit(1)
 	}
