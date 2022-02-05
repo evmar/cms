@@ -369,9 +369,12 @@ func renderPage(tmpl *template.Template, path string) error {
 
 	htmlPath := strings.TrimSuffix(path, ".md") + ".html"
 
+	slashes := strings.Count(path, "/")
+	root := strings.Repeat("../", slashes)
 	params := map[string]interface{}{
 		"title":      headers["title"],
 		"customhead": template.HTML(headers["customhead"]),
+		"root":       root,
 		"frontpage":  headers["frontpage"],
 		"content":    template.HTML(html),
 		"lastupdate": headers["lastupdate"],
