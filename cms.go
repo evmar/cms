@@ -14,6 +14,7 @@ import (
 
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 )
 
 type Post struct {
@@ -61,7 +62,7 @@ func readMarkdown(path string) (map[string]string, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	html := markdown.ToHTML(parts[2], nil, html.NewRenderer(html.RendererOptions{
+	html := markdown.ToHTML(parts[2], parser.NewWithExtensions(parser.FencedCode), html.NewRenderer(html.RendererOptions{
 		Flags: html.FlagsNone,
 	}))
 	// Hacks to make the output match the previous rendering:
