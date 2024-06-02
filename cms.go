@@ -63,7 +63,8 @@ func readMarkdown(path string) (map[string]string, []byte, error) {
 		return nil, nil, err
 	}
 	html := markdown.ToHTML(parts[2], parser.NewWithExtensions(parser.FencedCode), html.NewRenderer(html.RendererOptions{
-		Flags: html.FlagsNone,
+		Flags:          html.FlagsNone,
+		RenderNodeHook: syntaxHighlightRenderHook,
 	}))
 	// Hacks to make the output match the previous rendering:
 	html = bytes.ReplaceAll(html, []byte(" --- "), []byte(" &mdash; "))
@@ -333,7 +334,7 @@ func (blog *Blog) renderFeed() error {
 		})
 	}
 
-	buf, err := xml.Marshal(feed)
+	buf, err := xml.MarshalIndent(feed, "", "\t")
 	if err != nil {
 		return err
 	}
