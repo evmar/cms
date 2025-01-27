@@ -62,7 +62,8 @@ func readMarkdown(path string) (map[string]string, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	html := markdown.ToHTML(parts[2], parser.NewWithExtensions(parser.FencedCode), html.NewRenderer(html.RendererOptions{
+	extensions := parser.FencedCode | parser.BackslashLineBreak
+	html := markdown.ToHTML(parts[2], parser.NewWithExtensions(extensions), html.NewRenderer(html.RendererOptions{
 		Flags:          html.FlagsNone,
 		RenderNodeHook: syntaxHighlightRenderHook,
 	}))
